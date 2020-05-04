@@ -1,23 +1,29 @@
+<!DOCTYPE html>
 <html>
-    <title>Two Cars</title>
-    <head>
-    </head>
-<body>
+	<head>
+		<meta charset="utf-8">
 
-<div class="container">
-    <canvas id="canvas" height="600" width="600"></canvas>
-</div>
+		<title>Snake</title>
 
-<div id="board">
-    <label id="highscore">Start Game</label>
-    <br><br>
-    <label id="score">Avoid the squares.</label>    
-    <br> <br> 
-    <button class="btn" id="btnStart">Start</button>
-</div>
+		<meta name="author" content="Kian Kasad">
+		<meta name="description" content="A snake game written in pure JavaScript">
 
+		<link rel="icon" type="image/bmp" href="icon.bmp" />
+		<link rel="stylesheet" href="style.css" />
+		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+		<script src="script.js"></script>
+	</head>
 
-<link rel="stylesheet" href = "style.css"/>
-<script src="jquery-3.1.1.min.js"></script>
-<script src="script.js"></script>
-</body>
+	<body>
+		<div id="container">
+
+			<div id="score-label">Score: 0</div>
+			<button id="pause-button" class="material-icons">pause_circle_outline</button>
+
+			<canvas id="canvas" height="400" width="400">
+			</canvas>
+
+			</div>
+
+	</body>
+</html>

@@ -1,343 +1,277 @@
-var canvas = document.getElementById('canvas');
-var ctx = canvas.getContext('2d');
-var gameStatus = false;
-var highscore = 0;
-var car1, car2, timer, objTimer,
-    obstacles = [],
-    score = 0;
+window.addEventListener("load", main);
 
-function Car(type) {
-    this.y = 3 * canvas.height / 4;
-    this.type = type;
-    this.status = 'playing';
-    this.width = 30;
-    this.height = 60;
+// Canvas:
+var canvas;
+var ctx;
+var pauseButton;
+var scorelabel;
 
-    //set image
-    var img = document.createElement('img');
-    if (type === 'red') img.src = 'car_red.svg';
-    else if (type === 'blue') img.src = 'car_blue.png';
-    this.image = img;
+// Game:
+var timer;
+var fps = 10;
 
+// Board:
+var ts = 20;
+var gw = gh = 20;
 
-    //place it in random lane
-    var startX;
-    if (type === 'blue') startX = 0;
-    else startX = canvas.width / 2;
-    var r = randBool();
-    if (r) {
-        this.x = startX;
-        this.lane = 'left';
-    } else {
-        this.x = startX + canvas.width / 4;
-        this.lane = 'right';
-    }
+// Snake:
+var vx = vy = 0;
+var sx = sy = 10;
+var px = py = 10;
+var tail = 5;
+var trail = [];
 
-    var offset = canvas.width / 8 - this.width / 2;
-    this.x += offset;
+// Apple:
+var ax = ay = 15;
+var score = 0;
 
-    console.log('const ' + typeof (this.x));
+// Swipe gestures:
+var xdown = ydown = null;
 
+function main() {
+	canvas = document.getElementById("canvas");
+	ctx = canvas.getContext("2d");
+	pauseButton = document.getElementById("pause-button");
+	scorelabel = document.getElementById("score-label");
+
+	resizegame();
+
+	sx = Math.floor(gw / 2);
+	sy = Math.floor(gh / 2);
+
+	window.addEventListener("resize", resizegame);
+
+	document.addEventListener("keydown", keypress);
+
+	canvas.addEventListener("touchstart", touchdown, false);
+	canvas.addEventListener("touchmove", touchmove, false);
+
+	pauseButton.addEventListener("click", togglepause);
+
+	start();
 }
 
-Car.prototype.draw = function () {
-    ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+function touchdown(e) {
+	const firsttouch = e.touches[0];
+	xdown = firsttouch.clientX;
+	ydown = firsttouch.clientY;
 }
 
-Car.prototype.swipePos = function () {
-    var iX = this.x;
-    var fX;
-    var finalLane; //final position
-    var offset = 0;
+function touchmove(e) {
+	if (!xdown || !ydown) {
+		return;
+	}
 
-    if (this.lane === 'right') {
-        fX = iX - canvas.width / 4;
-        finalLane = 'left';
-        offset = -1;
-    } else {
-        fX = iX + canvas.width / 4;
-        finalLane = 'right';
-        offset = 1;
-    }
+	var xup = e.touches[0].clientX;
+	var yup = e.touches[0].clientY;
 
-    console.log(this.x + " : " + fX + ' - ' + offset);
-    var self = this;
+	var xdiff = xdown - xup;
+	var ydiff = ydown - yup;
 
-    var swipeTimer = setInterval(function () {
-        if (self.x !== fX) {
-            self.status = 'moving';
-            self.x += offset;
-        } else {
-            clearInterval(swipeTimer);
-            self.lane = finalLane;
-            self.status = 'playing';
-        }
-    }, 1);
+	var direction;
+	if (Math.abs(xdiff) > Math.abs(ydiff)) {
+		if (xdiff > 0) {
+			direction = "left";
+		} else {
+			direction = "right";
+		}
+	} else {
+		if (ydiff > 0) {
+			direction = "up";
+		} else {
+			direction = "down";
+		}
+	}
+
+	handleSwipe(direction);
+
+	xdown = ydown = null;
 }
 
-function Obj() {
-
-    //decide colour
-    var r = randBool();
-    var startX;
-
-    if (r) {
-        this.color = 'red';
-        startX = canvas.width / 2;
-    } else {
-        this.color = 'blue';
-        startX = 0;
-    }
-
-    //decide lane
-    r = randBool();
-    if (r) {
-        this.lane = 'right';
-        this.x = startX + canvas.width / 4;
-    } else {
-        this.lane = 'left';
-        this.x = startX;
-    }
-
-
-    //decide type
-    r = randBool();
-    if (r) {
-        this.type = 'circle';
-        this.radius = 25;
-        var offset = canvas.width / 8;
-        this.x += offset;
-    } else {
-        this.type = 'rect';
-        this.width = 50;
-        this.height = 50;
-        var offset = canvas.width / 8 - this.width / 2;
-        this.x += offset;
-    }
-
-    this.y = generateRandom(-50, -300);
-    this.speed = 5;
-    this.status = 'active';
-    obstacles.push(this);
+function handleSwipe(direction) {
+	switch (direction) {
+		case "left":
+			if (vx != 0) {
+				break;
+			}
+			vx = -1;
+			vy = 0;
+			break;
+		case "up":
+			if (vy != 0) {
+				break;
+			}
+			vx = 0;
+			vy = -1;
+			break;
+		case "right":
+			if (vx != 0) {
+				break;
+			}
+			vx = 1;
+			vy = 0;
+			break;
+		case "down":
+			if (vy != 0) {
+				break;
+			}
+			vx = 0;
+			vy = 1;
+			break;
+	}
 }
 
-Obj.prototype.draw = function () {
+function start() {
+	tail = 5;
+	trail = []
+	px = sx;
+	py = sy;
+	for (var i = 0; i < 5; i++) {
+		trail.push({x: px, y: py + 5 - i});
+	}
+	vx = 0;
+	vy = -1;
 
-    var self = this;
-    if (self.status === 'active') {
+	ax = Math.floor(Math.random() * gw);
+	ay = Math.floor(Math.random() * gh);
 
-        if (self.type === 'circle') {
-
-            //shell
-            ctx.fillStyle = self.color;
-            ctx.beginPath();
-            ctx.arc(self.x, self.y, self.radius, 0, 2 * Math.PI);
-            ctx.fill();
-
-            //sub-core
-            ctx.fillStyle = 'whitesmoke';
-            ctx.beginPath();
-            ctx.arc(self.x, self.y, self.radius - 5, 0, 2 * Math.PI);
-            ctx.fill();
-
-            //core
-            ctx.fillStyle = self.color;
-            ctx.beginPath();
-            ctx.arc(self.x, self.y, self.radius - 15, 0, 2 * Math.PI);
-            ctx.fill();
-
-            //destroy
-            // if (self.y + self.height > canvas.height) delete self;
-
-            //check collission
-            var car;
-            if (self.color === 'red') car = car1;
-            else car = car2;
-
-            //collission with car
-            //if(self.x === car.x && self.y + self.height)       
-
-        } else if (self.type === 'rect') {
-
-            //draw
-            //shell
-            ctx.fillStyle = self.color;
-            ctx.fillRect(self.x, self.y, self.width, self.height);
-
-            //sub-core
-            ctx.fillStyle = 'whitesmoke';
-            var offset = 5;
-            ctx.fillRect(self.x + offset, self.y + offset, self.width - 2 * offset, self.height - 2 * offset);
-
-            //core
-            ctx.fillStyle = self.color;
-            var offset = 15;
-            ctx.fillRect(self.x + offset, self.y + offset, self.width - 2 * offset, self.height - 2 * offset);
-
-            //destroy
-            if (self.y > canvas.height) delete self;
-
-            //collission with car
-        }
-    }
+	play();
 }
 
-Obj.prototype.move = function () {
-    var self = this;
-    self.y += self.speed;
+function update() {
+	px += vx;
+	py += vy;
+
+	if (px < 0 || px >= gw || py < 0 || py >= gh) {
+		die();
+	}
+
+	for (var i = 0; i < trail.length; i++) {
+		if (px == trail[i].x && py == trail[i].y) {
+			die();
+		}
+	}
+
+	trail.push({x: px, y: py});
+	while (trail.length > tail) {
+		trail.shift();
+	}
+
+	if (px == ax && py == ay) {
+		gotapple();
+	}
 }
 
-function init() {
+function render() {
+	ctx.fillStyle = "black";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	
+	ctx.fillStyle = "red";
+	ctx.fillRect(ax * ts, ay * ts, ts - 2, ts - 2);
 
-    clear();
-    score = 0;
-    obstacles = [];
-    $("#canvas").css('opacity', 1);
-    car1 = new Car('blue');
-    car2 = new Car('red');
-
-    timer = setInterval(function () {
-        clear();
-        drawRoad();
-        drawObstacles();
-        car1.draw();
-        car2.draw();
-        if (gameStatus) {
-            drawScore();
-        }
-    }, 20);
-
-    objTimer = setInterval(function () {
-        if (gameStatus) var o = new Obj();
-    }, 1000);
-
+	ctx.fillStyle = "lime";
+	for (var i = 0; i < trail.length; i++) {
+		ctx.fillRect(trail[i].x * ts, trail[i].y * ts, ts - 2, ts - 2);
+	}
 }
 
-function stop() {
-    clearInterval(timer);
-    clearInterval(objTimer);
-    gameStatus = false;
-
-    pre();
-
-    $("#highscore").text("Highscore: " + highscore);
-    $("#score").text("Score: " + score);
-    $("#board").fadeIn(500);
+function keypress(e) {
+	if (timer == -1 && e.keyCode != 32) {
+		return;
+	}
+	switch (e.keyCode) {
+		case 32:
+			togglepause();
+			break;
+		case 37:
+			if (vx != 0) {
+				break;
+			}
+			vx = -1;
+			vy = 0;
+			break;
+		case 38:
+			if (vy != 0) {
+				break;
+			}
+			vx = 0;
+			vy = -1;
+			break;
+		case 39:
+			if (vx != 0) {
+				break;
+			}
+			vx = 1;
+			vy = 0;
+			break;
+		case 40:
+			if (vy != 0) {
+				break;
+			}
+			vx = 0;
+			vy = 1;
+			break;
+	}
 }
 
-function drawRoad() {
-
-    //draw two road seperator
-    ctx.fillStyle = 'black';
-    ctx.fillRect(canvas.width / 2, 0, 3, canvas.height);
-
-
-    //draw sub road seperator
-    ctx.fillStyle = 'white';
-    // ctx.lineJoin = 'dotted';
-    ctx.fillRect(canvas.width / 4, 0, 2, canvas.height);
-    ctx.fillRect(3 * canvas.width / 4, 0, 2, canvas.height);
+function gotapple() {
+	tail++;
+	score++;
+	scorelabel.innerHTML = "Score: " + score;
+	ax = Math.floor(Math.random() * gw);
+	ay = Math.floor(Math.random() * gh);
 }
 
-function drawObstacles() {
-    for (var i = 0; i < obstacles.length; i++) {
-        obstacles[i].move();
-        obstacles[i].draw();
-        checkCollission(obstacles[i]);
-    }
+function die() {
+	score = 0;
+	scorelabel.innerHTML = "Score: 0";
+	tail = 5;
+	trail = []
+	px = sx;
+	py = sy;
+	for (var i = 0; i < 5; i++) {
+		trail.push({x: px, y: py + 5 - i});
+	}
+	vx = 0;
+	vy = -1;
 }
 
-function drawScore(params) {
-    ctx.fillStyle = 'white';
-    ctx.font = '50px sans-serif';
-    ctx.fillText(score, 50, 50);
+function pause() {
+	clearInterval(timer);
+	timer = -1;
+	pauseButton.innerHTML = "play_circle_outline";
 }
 
-function checkCollission(obstacle) {
-
-    var col = false;
-
-    //select car
-    var car;
-    if (obstacle.color === 'red') car = car2;
-    else car = car1;
-
-    //check collossion according to type
-    if (obstacle.type === 'rect') {
-
-        //up-down collission
-        if (car.x > obstacle.x && car.x + car.width < obstacle.x + obstacle.width && car.y > obstacle.y && car.y < obstacle.y + obstacle.height)
-            col = true;
-
-        //left collission
-
-        //right collission
-
-    } else if (obstacle.type === 'circle') {
-        if (car.x > obstacle.x - obstacle.radius && car.x + car.width < obstacle.x + obstacle.radius && car.y > obstacle.y - obstacle.radius && car.y < obstacle.y + obstacle.radius) {
-
-            if (obstacle.status === 'active')
-                score++;
-            $("#score").text("Score: " + score);
-            obstacle.status = 'dead';
-        }
-
-    }
-
-    highscore = (score > highscore) ? score : highscore;
-    if (col) stop();
+function play() {
+	timer = setInterval(function() {
+		update();
+		render();
+	}, 1000 / fps);
+	pauseButton.innerHTML = "pause_circle_outline";
 }
 
-function generateRandom(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+function togglepause() {
+	if (timer == -1) {
+		play();
+	} else {
+		pause();
+	}
 }
 
-function randBool() {
-    return (generateRandom(1, 100) % 2 === 0);
+function resizegame() {
+	canvas.width = window.innerWidth - 2;
+	canvas.height = window.innerHeight - 2;
+
+	gw = Math.floor(canvas.width / ts);
+	gh = Math.floor(canvas.height / ts);
+
+	canvas.width -= canvas.width - (gw * ts);
+	canvas.height -= canvas.height - (gh * ts);
+
+	if (ax >= gw) {
+		ax = Math.floor(Math.random() * gw);
+	}
+	if (ay >= gh) {
+		ay = Math.floor(Math.random() * gh);
+	}
 }
-
-function randBinaryNum() {
-    if (randBool()) return 1;
-    else return 0;
-}
-
-function clear() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
-
-$("#canvas").click(function (e) {
-    var rect = canvas.getBoundingClientRect();
-    var x = e.clientX - rect.left;
-
-    var c;
-    if (x < canvas.width / 2) c = car1;
-    else c = car2;
-
-    if (c.status === 'playing') {
-        c.swipePos();
-    }
-});
-
-$("#btnStart").click(function (e) {
-    gameStatus = true;
-    init();
-    $("#board").fadeOut(500);
-})
-
-
-function pre() {
-    //draw game starting background
-    drawRoad();
-    car1 = new Car('blue');
-    car2 = new Car('red');
-    var img = new Image();
-    img.src = 'logo.png';
-    img.onload = function () {
-        ctx.drawImage(img, canvas.width / 2 - img.width / 2, canvas.height / 2 - img.height, img.width, img.height);
-        car1.draw();
-        car2.draw();
-        $("#canvas").css('opacity', 0.9);
-    }
-}
-
-pre();
